@@ -2,11 +2,26 @@
 use std::error::Error;
 use waitpid_any::WaitHandle;
 
-fn wip(pid: i32) -> Result<(), Box<dyn Error>> {
-    let mut wait_handle = WaitHandle::open(pid)?;
-    println!("Waiting for process {} to exit...", pid);
-    wait_handle.wait()?;
-    println!("Process {} exited", pid);
+fn wip(pids: Vec<i32>) -> Result<(), Box<dyn Error>> {
+    let mut handles = pids
+        .iter()
+        .map(|pid| WaitHandle::open(*pid))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    println!("Waiting for process {:?} to exit...", pids);
+
+    let exited_pid;
+
+    'out: loop {
+        for (i, handle) in handles.iter_mut().enumerate() {
+            if let Some(()) = handle.wait_timeout(std::time::Duration::from_secs(0))? {
+                exited_pid = pids[i];
+                break 'out;
+            }
+        }
+    }
+
+    println!("Process {:?} exited", exited_pid);
     Ok(())
 }
 
@@ -16,9 +31,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cmd = &args.get(1).ok_or("Missing command argument")?;
 
     if *cmd == "wip" {
-        let pid = args.get(2).ok_or("Missing PID argument")?.parse::<i32>()?;
-        assert!(pid > 0);
-        wip(pid)?;
+        let pids = args
+            .iter()
+            .skip(2)
+            .map(|s| {
+                let n = s.parse::<i32>().unwrap();
+                assert!(n > 0);
+                n
+            })
+            .collect::<Vec<i32>>();
+
+        wip(pids)?;
+
+        return Ok(());
     }
 
     Ok(())
