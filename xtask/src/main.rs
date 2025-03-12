@@ -1,62 +1,41 @@
-use nix::sys::prctl::set_pdeathsig;
-use nix::sys::signal::Signal;
-use nix::unistd::{getpid, getppid};
-use signal_hook::{consts::SIGUSR1, flag};
+use inotify::{Inotify, WatchMask};
+use std::error::Error;
 
-use std::{
-    error::Error,
-    sync::Arc,
-    sync::atomic::{AtomicBool, Ordering},
-    thread,
-    time::Duration,
-};
+fn wip(pid: i32) -> Result<(), Box<dyn Error>> {
+    println!("Monitoring process with PID: {}", pid);
 
-fn wip() -> Result<(), Box<dyn Error>> {
-    let pid = getpid();
-    let ppid = getppid();
-    println!("Process {} monitoring parent {}", pid, ppid);
-
-    // Create an atomic flag that will be set when we receive the signal
-    let parent_died = Arc::new(AtomicBool::new(false));
-
-    // Set up the signal handler using signal_hook's flag API
-    // This registers a handler that sets our atomic flag when SIGUSR1 is received
-    flag::register(SIGUSR1, parent_died.clone())?;
-
-    // Tell kernel to send SIGUSR1 when parent dies
-    set_pdeathsig(Signal::SIGUSR1)?;
-
-    // Check if parent is already PID 1 (init)
-    if ppid.as_raw() == 1 {
-        println!("Parent is already init (PID 1)");
-        return Ok(());
+    // Check if process exists initially
+    let proc_path = format!("/proc/{}", pid);
+    if !std::path::Path::new(&proc_path).exists() {
+        return Err(format!("Process {} does not exist", pid).into());
     }
 
-    println!("Monitoring parent {}...", ppid);
+    // Initialize inotify
+    let mut inotify = Inotify::init()?;
 
-    // Single loop that checks both the signal flag and the parent PID
-    while !parent_died.load(Ordering::Relaxed) {
-        // Check if parent has changed to PID 1
-        if getppid().as_raw() == 1 || getppid() != ppid {
-            println!("Parent changed to {}", getppid());
-            break;
-        }
-        thread::sleep(Duration::from_secs(1));
-    }
+    // Watch for DELETE_SELF event on the process directory
+    inotify.watches().add(&proc_path, WatchMask::DELETE_SELF)?;
 
-    // We get here either via the signal or the PID check
-    println!("Parent died - performing cleanup...");
+    // Buffer for events
+    let mut buffer = [0; 1024];
 
-    // Do cleanup work here
+    // Wait for events
+    println!("Waiting for process {} to terminate...", pid);
+    let _ = inotify.read_events_blocking(&mut buffer)?;
 
+    println!("Process {} has terminated", pid);
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let cmd = std::env::args().nth(1).ok_or("No command provided")?;
+    let args: Vec<String> = std::env::args().collect();
 
-    if cmd == "wip" {
-        wip()?;
+    let cmd = &args.get(1).ok_or("Missing command argument")?;
+
+    if *cmd == "wip" {
+        let pid = args.get(2).ok_or("Missing PID argument")?.parse::<i32>()?;
+        assert!(pid > 0);
+        wip(pid)?;
     }
 
     Ok(())
