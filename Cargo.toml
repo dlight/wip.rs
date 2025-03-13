@@ -1,11 +1,8 @@
 [package]
-name = "gitexpr"
+name = "git-wip"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-
-[workspace]
-members = [
-    "xtask",
-]
+inotify = "0.11.0"
+waitpid-any = "0.3.0"
