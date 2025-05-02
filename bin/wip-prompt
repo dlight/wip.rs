@@ -1,0 +1,33 @@
+#!/bin/bash
+
+shopt -s lastpipe
+
+parent=0
+me=0
+child=0
+
+"$(dirname "$0")"/wip-list --current-dir --count | while read kind num; do
+    if [[ $kind == parents ]]; then
+        parent="$num"
+    elif [[ $kind == pwd ]]; then
+        me="$num"
+    elif [[ $kind == children ]]; then
+        child="$num"
+    else
+        echo "Unknown kind: $kind (num: $num)"
+        exit 1
+    fi
+done
+
+me_or_up=$((parent + me))
+
+total=$((parent + me + child))
+
+if [[ $me_or_up -gt 0 && $child -gt 0 ]] then
+    echo "(error: $total wipd instances)"
+elif [[ "$me_or_up" -eq 1 ]]; then
+    echo "wipd"
+elif [[ "$me_or_up" -gt 1 ]]; then
+    echo "(error: $total wipd instances)"
+    exit 1
+fi

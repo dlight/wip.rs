@@ -1,0 +1,17 @@
+#!/bin/bash
+
+shopt -s lastpipe
+
+output="$("$(dirname "$0")"/wip-list --current-dir)"
+
+
+if [[ $output ]]; then
+    echo "error: another instance of wipd is running on either the current directory"
+    echo "($PWD) or a related directory"
+    echo
+    echo "$output"
+
+    exit 1
+fi
+
+exec "$(dirname "$0")"/wip-fd41eca378

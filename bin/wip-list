@@ -1,0 +1,115 @@
+#!/bin/bash
+
+shopt -s lastpipe
+
+# TODO: this should list all children of any parent, not just children of
+# current pwd
+#
+# that's because if I am watching on /x and /x/y/z, the error is reported if I
+# am on /r/y (/x is parent, /x/y/z is child) but it's still an error even if I
+# were on /x/a instead (/x/a is child of parent /x)
+#
+# this is relevant for wip-prompt. wipd doesn't care because the parent already
+# blocks it.
+if [[ $1 == "--count" || $2 == "--count" ]]; then
+    count=true
+fi
+
+if [[ $1 == "--current-dir" || $2 == "--current-dir" ]]; then
+    current_dir=true
+fi
+
+is_ancestor() {
+    local dir1="$(realpath "$1")"
+    local dir2="$(realpath "$2")"
+
+    while [[ "$dir2" != / ]]; do
+        dir2="$(dirname "$dir2")"
+
+        if [[ "$dir1" == "$dir2" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+select_ancestry() {
+    if [[ $include_children ]]; then
+        ancestor_or_me
+    else
+        echo "$PWD"
+    fi
+}
+
+process_pwd() {
+    local pids="$@"
+
+    if [[ -z $count ]]; then
+        pwdx $pids | sed 's/://' | while read pid dir; do
+            if [[ "$dir" == "$PWD" ]]; then
+
+                echo "pwd $pid $dir"
+
+            elif is_ancestor "$dir" "$PWD"; then
+                echo "parent $pid $dir"
+            elif is_ancestor "$PWD" "$dir"; then
+                echo "child $pid $dir"
+            fi
+        done
+    else
+        local parents=0
+        local me=0
+        local children=0
+
+        pwdx $pids | sed 's/://' | while read pid dir; do
+            if [[ "$dir" == "$PWD" ]]; then
+                me=$((me + 1))
+            elif is_ancestor "$dir" "$PWD"; then
+                parents=$((parents + 1))
+
+            elif is_ancestor "$PWD" "$dir"; then
+                children=$((children + 1))
+            fi
+        done
+
+        echo parents $parents
+        echo pwd $me
+        echo children $children
+    fi
+}
+
+
+process_all() {
+    local pids="$@"
+
+    local total=0
+
+    if [[ -z $count ]]; then
+        pwdx $pids
+    else
+        pwdx $pids | sed 's/://' | while read pid dir; do
+            total=$((total + 1))
+        done
+
+        echo $total
+    fi
+}
+
+pids="$(pgrep --delimiter=' ' wip-fd41eca378)"
+
+if [[ -z $pids ]]; then
+    if [[ $count ]]; then
+        if [[ $current_dir ]]; then
+            echo parents 0
+            echo pwd 0
+            echo children 0
+        else
+            echo 0
+        fi
+    fi
+elif [[ $current_dir ]]; then
+    process_pwd $pids
+else
+    process_all $pids
+fi

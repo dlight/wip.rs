@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# the purpose of having a filename like wip-fd41eca378 is that it is a unique
+# identifier for this particular script, so pgrep can more or less unambiguously
+# identify it.
+
+shopt -s lastpipe
+
+echo starting wipd. my pid is $$
+
+inotifywait --monitor --recursive --event modify,create,delete,move \
+    --exclude .git --timefmt '%s' --format "%e %w%f %T" . | \
+while read event file tm; do
+    msg="WIP: $event $file"
+    bash -c "echo File changed: $file; git wip save '$msg' --untracked"
+done
