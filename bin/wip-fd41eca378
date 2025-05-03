@@ -6,7 +6,7 @@
 
 shopt -s lastpipe
 
-echo starting wipd. my pid is $$
+echo starting wipd on $PWD. my pid is $$
 
 inotifywait --monitor --recursive --event modify,create,delete,move \
     --exclude .git --timefmt '%s' --format "%e %w%f %T" . | \
