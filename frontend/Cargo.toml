@@ -1,0 +1,14 @@
+[package]
+name = "frontend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[package.metadata.wip.paths]
+include = "../common/types"
+ignore = "README.md"
+
+[package.metadata.wip.watcher-hooks]
+trigger_rebuild = "echo $RANDOM > ./target/wip-trigger-rebuild"
+binary_path  = "./target/frontend"
