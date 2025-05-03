@@ -1,7 +1,5 @@
 #!/bin/bash
 
-shopt -s lastpipe
-
 if [[ $# -eq 1 ]]; then
     cd "$1"
 fi
