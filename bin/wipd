@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [[ $1 == "--systemd" ]]; then
+    systemd=true
+    shift
+fi
+
 if [[ $# -eq 1 ]]; then
     cd "$1"
 fi
@@ -14,11 +19,23 @@ cd "$(git rev-parse --show-toplevel)"
 output="$("$(dirname "$0")"/wip-list | grep -E "^[0-9]+: ${PWD}$")"
 
 if [[ $output ]]; then
-    echo "error: another instance of wipd is running on repository $PWD"
-    echo
-    echo "$output"
+    echo "error: another instance of wipd is running on repository $PWD" > /dev/stderr
+    echo > /dev/stderr
+    echo "$output" > /dev/stderr
 
     exit 1
 fi
 
-exec "$(dirname "$0")"/wip-fd41eca378
+if [[ $systemd ]]; then
+    if [[ ! -f ~/.config/systemd/user/wipd@.service ]]; then
+        servicedir="$(realpath "$(dirname "$0")"/../systemd)"
+
+        ln -s "$servicedir/wipd@.service" ~/.config/systemd/user/wipd@.service
+    fi
+    echo "Starting wipd as a systemd service on repository $PWD..."
+
+    systemctl --user start "wipd@$(systemd-escape "$PWD")"
+
+else
+    exec "$(dirname "$0")"/wip-fd41eca378
+fi
