@@ -6,12 +6,17 @@ if [[ $# -eq 1 ]]; then
     cd "$1"
 fi
 
-output="$("$(dirname "$0")"/wip-list --current-dir)"
+if [[ $(git rev-parse --is-inside-work-tree 2> /dev/null) != true ]]; then
+    echo "error: $PWD: not inside a git repository"
+    exit 1
+fi
 
+cd "$(git rev-parse --show-toplevel)"
+
+output="$("$(dirname "$0")"/wip-list | grep -E "^[0-9]+: ${PWD}$")"
 
 if [[ $output ]]; then
-    echo "error: another instance of wipd is running on either the current directory"
-    echo "($PWD) or a related directory"
+    echo "error: another instance of wipd is running on repository $PWD"
     echo
     echo "$output"
 
