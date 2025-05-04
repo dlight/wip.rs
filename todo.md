@@ -7,10 +7,15 @@
 
 ## Some new tools
 
-* [ ] A tool `wip-read-toml` written in Rust that parses `wip.toml` from a
+* [x] A tool `wip-read-toml` written in Rust that parses `wip.toml` from a
       project inside a repo, reads the part that says which directories
       influences the build of the project, and prints all files in them. (Note:
       the project-wide `wip.toml` is going to get ignored for now)
+    * [ ] Make it able to exclude files too (like readme etc)
+    * [ ] Allow globs rather than only exact paths
+    * [ ] Respect `.gitignore`
+    * [ ] Make `Config` also store the root directory using either gix or shelling out to
+          git.
 
 * [ ] A shell script `wip-partial-tree` that calls `wip-read-toml` and builds a
       git tree containing only files that influences the build of a given

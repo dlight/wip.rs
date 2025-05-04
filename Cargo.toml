@@ -1,8 +1,16 @@
 [package]
-name = "git-wip"
+name = "wip"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# dependencies only for wip-watcher
+# TODO: move wip-watcher to another crate
 inotify = "0.11.0"
 waitpid-any = "0.3.0"
+
+# only for wip-read-toml
+walkdir = "2.5.0"
+toml = "0.8.22"
+serde = "1.0.219"
+serde_derive = "1.0.219"
