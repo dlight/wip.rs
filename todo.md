@@ -1,11 +1,13 @@
 * [x] `wipd --systemd`: run as a systemd instanced service in ~/.config/systemd
-    * [ ] have some way to stop the systemd service of current dir (note: that
-          is kinda hard if you have wipd running in direnv)
-    * [ ] have a way to stop all wipd instances (if they are running on systemd,
-          run systemd stop, if not, just kill). Right now what can be done is
-          `killall -9 wip-fd41eca378` for non-systemd instances (note, `kilalll
-          -9 wipd` doesn't work), and 'systemctl --user stop 'wipd@*'` for wipd
-          instances.
+
+* [ ] `wip-list --current-repo`: list all wipd instances that are running in the
+      current repo. (This would just copy over most code from `wip-prompt`)\
+      \
+      Besides having a bug, more than one instance will run in the same repo
+      only if there was a repo (maybe a git submodule) that previously existed
+      and was removed (maybe by removing `.git`). Because of that, the final
+      `wipd` (fully written in Rust - not this shell script poc) must watch
+      `.git` files and quit when they are deleted.
 
 ## Some new tools
 
@@ -22,6 +24,17 @@
 * [x] A shell script `wip-subset-tree` that calls `wip-read-toml` and builds a
       git tree containing only files that influences the build of a given
       project, and prints its sha1.
+
+* [x] A shell script `wip-stop` to stop all wipd instances (if they are running
+      on systemd, run systemd stop, if not, just kill).
+    * [ ] Make it print which directory each stopped instance was watching. (It
+          already kind of does when stopping systemd instances - through the
+          debug messages - but I need to call `systemd-escape -u -- ..` on the
+          escaped path)
+    * [ ] `wip-stop --current-repo` to stop the `wipd` instance in the current
+          repo (note: that is kinda hard to do reliably if you have wipd running
+          in direnv, because direnv will keep restarting it if you enter a new
+          directory)
 
 * [ ] A tool that amends the commit message of the last commit - which is either
     `HEAD` if the working dir is clean, or the wip commit if there are changes

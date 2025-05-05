@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# stop wipd instances running as systemd services
+# note: system doesn't provide a --verbose flag https://stackoverflow.com/a/73207052
+SYSTEMD_LOG_LEVEL=debug systemctl --user stop 'wipd@*' 2>&1 | \
+    grep -E -i "Got result|Failed" | \
+    sed '/chroot/d; s/^/stopping systemd wipd: /'
+
+# stop wipd instances not running under systemd
+killall -9 -v wip-fd41eca378 2>&1 | \
+    sed '/no process found/d; s/^/stopping non-systemd wipd: /'

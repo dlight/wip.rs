@@ -11,6 +11,13 @@ shopt -s lastpipe
 #
 # this is relevant for wip-prompt. wipd doesn't care because the parent already
 # blocks it.
+#
+# Note: I had to change the logic to always run on a top-level git directory and
+# now this is not relevant for anyone. Both wipd and wip-prompt now calls
+# wip-list without an flags.
+#
+# However it would be cool to list all wipd instances that are running in the
+# current repo, to see if there are more than one.
 if [[ $1 == "--count" || $2 == "--count" ]]; then
     count=true
 fi
