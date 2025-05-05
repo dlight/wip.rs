@@ -33,5 +33,10 @@ the full repo. But maybe subset trees evoke the right meaning.
 
 [^projectnaming]: Note, I have been calling *project* a subproject inside a git
 monorepo, but I could maybe call it a *binary* to emphasise that each project
-produces only one binary artifact. Or a *program* or something else. I think
-*project* is the wrong word for it, but I can't come up with a better word.
+produces only one binary artifact. Or a *program* or something else. The perfect
+word for it actually is *target* (this is what Makefiles and other build tools
+use), but unfortunately this name is too overloaded in the Rust world: there is
+the `target` directory with build outputs for the entire workspace, and there is
+the concept of compilation targets (things like `x86_64-unknown-linux-musl`).
+So, anyway, I think *project* is the wrong word for it, but I can't come up with
+a better word. (In any case, maybe I will use *target*)
