@@ -3,7 +3,9 @@
           is kinda hard if you have wipd running in direnv)
     * [ ] have a way to stop all wipd instances (if they are running on systemd,
           run systemd stop, if not, just kill). Right now what can be done is
-          `killall -9 wip-fd41eca378` (note, `kilalll -9 wipd` doesn't work)
+          `killall -9 wip-fd41eca378` for non-systemd instances (note, `kilalll
+          -9 wipd` doesn't work), and 'systemctl --user stop 'wipd@*'` for wipd
+          instances.
 
 ## Some new tools
 
@@ -11,13 +13,13 @@
       project inside a repo, reads the part that says which directories
       influences the build of the project, and prints all files in them. (Note:
       the project-wide `wip.toml` is going to get ignored for now)
-    * [ ] Make it able to exclude files too (like readme etc)
+    * [x] Make it able to exclude files too (like readme etc)
     * [ ] Allow globs rather than only exact paths
     * [ ] Respect `.gitignore`
-    * [ ] Make `Config` also store the root directory using either gix or shelling out to
-          git.
+    * [ ] Make the `Config` struct also store the root directory using either
+          gix or shelling out to git.
 
-* [ ] A shell script `wip-partial-tree` that calls `wip-read-toml` and builds a
+* [x] A shell script `wip-subset-tree` that calls `wip-read-toml` and builds a
       git tree containing only files that influences the build of a given
       project, and prints its sha1.
 
@@ -25,14 +27,23 @@
     `HEAD` if the working dir is clean, or the wip commit if there are changes
     (creating the wip commit if it doesn't exist), to be called after every
     successful build of a given project - it inserts some build info (such as
-    the version, the partial tree of all files influencing the build, and any
-    warnings). It also creates two refs: something like
+    the version, the subset tree of all files influencing the build, and any
+    build warnings).\
+    \
+    It must also creates two refs: something like
     `refs/build/myproject-v<semver>` pointing to the commit it was built, and
-    `refs/partial-tree/myproject-v<semver>` pointing to the partial tree of all
-    files influencing the build. The generated semver is very particular, it's
-    something like this: `myproject-v1.2.3-wip.2+2025-03-01` for wip commits,
-    and `myproject-v1.2.3-wip.2+2025-03-01` for commits in a branch (made when
-    the working tree was clean).
+    `refs/influences-build/myproject-v<semver>` pointing to the subset tree of
+    all files influencing the build. The generated semver is very particular,
+    with specific pre-release and build metadata, it's something like this:
+    `1.2.3-wip.2+2025-03-01` for wip commits, and `1.2.3-wip.2+2025-03-01` for
+    commits in a branch (made when the working tree was clean). (Or maybe just
+    `myproject-v1.2.3-wip.2`, I can't decide myself).\
+    \
+    Since the only two languages I am using here is Rust and shell script, I
+    think this tool needs to be written in Rust: correctly adding metadata to
+    the commit message may be tricky if there is already previous metadata (for
+    example, if I build one project, then build another project without changing
+    any file)
 
   * [ ] I also needed some way to differentiate between wip builds and true
         releases. One idea is a flag in `wip.toml` that says that every commit
