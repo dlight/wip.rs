@@ -14,7 +14,7 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub type WipTomlUnevaluated = WipTomlBase<UnevaluatedVersion>;
 pub type WipToml = WipTomlBase<Version>;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "V: Serialize + DeserializeOwned")]
 pub struct WipTomlBase<V: Serialize + DeserializeOwned + Debug> {
     pub target: Vec<Target<V>>,
@@ -22,7 +22,7 @@ pub struct WipTomlBase<V: Serialize + DeserializeOwned + Debug> {
     pub path: PathBuf,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "V: Serialize + DeserializeOwned")]
 pub struct Target<V: Serialize + DeserializeOwned + Debug> {
     pub name: String,
@@ -42,7 +42,7 @@ pub struct VersionFrom {
     from: PathBuf,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InfluencesBuild {
     pub include: Vec<PathBuf>,
     pub exclude: Vec<PathBuf>,

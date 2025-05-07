@@ -16,18 +16,39 @@ use wip::{Result, WipToml};
 // TODO: change to struct Sha1([u8; 20]);
 type Sha1 = String;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct BuildInfo {
-    target_name: String,
-    version: Version,
+    #[serde(flatten)]
+    target: VersionedTarget,
     subset_tree: Sha1,
     build_warnings: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CommitMessage {
     message: String,
     metadata: Vec<BuildInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct VersionedTarget {
+    name: String,
+    version: Version,
+}
+
+impl fmt::Display for VersionedTarget {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}-{}", self.name, self.version)
+    }
+}
+
+impl VersionedTarget {
+    fn from_wip_toml(wip_toml_target: &wip::Target<Version>) -> Self {
+        Self {
+            name: wip_toml_target.name.clone(),
+            version: wip_toml_target.version.clone(),
+        }
+    }
 }
 
 impl std::fmt::Display for BuildInfo {
@@ -35,7 +56,7 @@ impl std::fmt::Display for BuildInfo {
         writeln!(
             f,
             "successful build: {}-{} ({})",
-            self.target_name, self.version, self.subset_tree
+            self.target.name, self.target.version, self.subset_tree
         )?;
 
         if let Some(warnings) = &self.build_warnings {
@@ -88,11 +109,10 @@ impl BuildInfo {
 
         let wip_toml = WipToml::read_toml(wip_toml_path)?;
         let target = wip_toml.get_target(&target_name)?;
-        let version = target.version.clone();
+        let target = VersionedTarget::from_wip_toml(target);
 
         Ok(Self {
-            target_name,
-            version,
+            target,
             build_warnings,
             subset_tree,
         })
