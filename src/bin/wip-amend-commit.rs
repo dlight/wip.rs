@@ -10,23 +10,17 @@ use execute::Execute;
 use itertools::Itertools;
 use semver::Version;
 use serde_derive::{Deserialize, Serialize};
-use serde_with::{DisplayFromStr, serde_as};
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+use wip::{Result, WipToml};
 
 // TODO: change to struct Sha1([u8; 20]);
 type Sha1 = String;
 
-// Currently same type as Sha1, which is unfortunate
-type ShortHash = String;
-
-#[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 struct BuildInfo {
     target_name: String,
-    #[serde_as(as = "DisplayFromStr")]
     version: Version,
-    short_hash: ShortHash,
+    subset_tree: Sha1,
     build_warnings: Option<String>,
 }
 
@@ -41,7 +35,7 @@ impl std::fmt::Display for BuildInfo {
         writeln!(
             f,
             "successful build: {}-{} ({})",
-            self.target_name, self.version, self.short_hash
+            self.target_name, self.version, self.subset_tree
         )?;
 
         if let Some(warnings) = &self.build_warnings {
@@ -79,33 +73,28 @@ impl BuildInfo {
     fn from_cmdline_args(mut args: impl ExactSizeIterator<Item = String>) -> Result<Self> {
         let num_args = args.len();
 
-        if num_args < 4 {
-            eprintln!(
-                "Usage: wip-amend-commit <target wip.toml> <target name> <version> [build warnings]"
-            );
+        if num_args < 3 {
+            eprintln!("Usage: wip-amend-commit <target wip.toml> <target name> [build warnings]");
             std::process::exit(1);
         }
 
-        let (own_binary, wip_toml, target_name, version) = args.next_tuple().unwrap();
+        let (own_binary, wip_toml_path, target_name) = args.next_tuple().unwrap();
         let build_warnings = args.next();
 
         let own_binary = Path::new(&own_binary);
-
-        let wip_toml = &Path::new(&wip_toml);
-
-        let version = Version::parse(&version)?;
-
+        let wip_toml_path = &Path::new(&wip_toml_path);
         let bin_dir = find_bin_dir(own_binary);
+        let subset_tree = get_subset_tree(own_binary, wip_toml_path, &target_name)?;
 
-        let subset_tree = get_subset_tree(own_binary, wip_toml)?;
-
-        let short_hash = short_hash(subset_tree)?;
+        let wip_toml = WipToml::read_toml(wip_toml_path)?;
+        let target = wip_toml.get_target(&target_name)?;
+        let version = target.version.clone();
 
         Ok(Self {
             target_name,
             version,
             build_warnings,
-            short_hash,
+            subset_tree,
         })
     }
 }
@@ -119,34 +108,21 @@ fn find_bin_dir(own_binary: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn get_subset_tree(own_binary: &Path, wip_toml: &Path) -> Result<Sha1> {
+fn get_subset_tree(own_binary: &Path, wip_toml: &Path, target_name: &str) -> Result<Sha1> {
     let bin_dir = find_bin_dir(own_binary)?;
 
     let bin_path = bin_dir.join("wip-subset-tree");
 
     let mut wip_subset_tree = Command::new(bin_path);
     wip_subset_tree.arg(wip_toml);
+    wip_subset_tree.arg(target_name);
+
     let output = wip_subset_tree.output()?;
     if output.status.success() {
         let hash = String::from_utf8_lossy(&output.stdout);
         Ok(Sha1::from(hash.trim().to_string()))
     } else {
         return Err("wip-subset-tree failed")?;
-    }
-}
-
-fn short_hash(hash: Sha1) -> Result<ShortHash> {
-    let mut git = Command::new("git");
-    git.arg("rev-parse");
-    git.arg("--short");
-    git.arg(hash);
-
-    let output = git.output()?;
-    if output.status.success() {
-        let hash = String::from_utf8_lossy(&output.stdout);
-        Ok(hash.trim().to_string())
-    } else {
-        return Err("git rev-parse failed")?;
     }
 }
 

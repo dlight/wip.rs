@@ -29,28 +29,42 @@ watching.
 Put $(wip-prompt) in the prompt to show whether the repo whose the current dir
 belongs to is being watched by `wipd`.
 
-### `wip-read-toml`
+### `wip`
 
-A tool `wip-read-toml` written in Rust that parses `wip.toml` from a
-project/target inside a repo, reads the part that says which directories
-influences the build of the project, and prints all files in them. (Note: the
-repo-wide `wip.toml` is going to get ignored for now)
+A library crate (not a binary) containing some common code used by all Rust
+binaries. Currently only the code for reading a project/target `wip.toml`. It's
+only one file, `src/lib.rs`.
+
+Currently all tools are in the same crate, in different binaries), but I may
+change this later.
+
+* [x] Move common code from `wip-read-toml` to `lib`
+* [x] Read version in `wip.toml` either directly (`version = 1.0.0`) or copied
+      from `Cargo.toml` (`version = { from = "Cargo.toml" }`).
+* [ ] Make the `WipTomlBase` struct also store the root git directory using
+      either gix or shelling out to git.
+  * [ ] Ensure paths in `wip.toml` can't point outside the Git repository.
+
+### `wip-influences-build`
+
+A tool written in Rust that parses `wip.toml` from a project/target inside a
+repo, reads the part that says which directories influences the build of the
+project, and prints all files in them. (Note: the repo-wide `wip.toml` is going
+to get ignored for now)
 
 * [ ] Allow globs rather than only exact paths
 * [x] Make it able to exclude files too (like readme etc)
 * [ ] Respect `.gitignore`
-* [ ] Make the `Config` struct also store the root directory using either
-      gix or shelling out to git.
+* [x] Rename from `wip-read-toml` to `wip-influences-build`
 
 ### `wip-subset-tree`
 
-A shell script `wip-subset-tree` that calls `wip-read-toml` and builds a git
-tree containing only files that influences the build of a given project, and
-prints its sha1.
+A shell script that calls `wip-read-toml` and builds a git tree containing only
+files that influences the build of a given project, and prints its sha1.
 
 ### `wip-stop`
 
-A shell script `wip-stop` to stop all wipd instances (if they are running
+A shell script to stop all wipd instances (if they are running
 on systemd, run systemd stop, if not, just kill).
 
 * [ ] Make it print which directory each stopped instance was watching. (It
@@ -64,9 +78,9 @@ on systemd, run systemd stop, if not, just kill).
 
 ### `git-working-tree`
 
-A shell script `git-working-tree` that prints the commit hash of the current
-repository if it is clean, or prints the commit hash of the wip commit (calling
-`git wip` first to ensure it exists)
+A shell script that prints the commit hash of the current repository if it is
+clean, or prints the commit hash of the wip commit (calling `git wip` first to
+ensure it exists)
 
 ## Planned tools
 
@@ -93,7 +107,7 @@ repository if it is clean, or prints the commit hash of the wip commit (calling
     the commit message may be tricky if there is already previous metadata (for
     example, if I build one project, then build another project without changing
     any file)
-
+  * [x] Commit metadata in toml format
 
   * [ ] I also needed some way to differentiate between wip builds and true
         releases. One idea is a flag in `wip.toml` that says that every commit
@@ -109,18 +123,14 @@ repository if it is clean, or prints the commit hash of the wip commit (calling
         using [cargo-husky](https://github.com/rhysd/cargo-husky) or (most
         likely) having our own tool.
 
-  * [ ] When saving a subset tree I would like to write a short hash. However
-        when reading them they could be ambiguous. [I need to disambiguate
-        them](https://stackoverflow.com/questions/27428441/how-to-disambiguate-an-ambiguous-abbreviated-sha1-in-git)
-        and select the *oldest* tree (git tree objects don't have a timestam,
-        but I could find the commits that have each tree and select the oldest.
-        If the tree isn't in any reachable commit, I could look into unreachable
-        commits. I could also look into the timestamps on
-        `refs/influences-build/project-version` and select the oldest).\
-        \
-        Perhaps a better idea is to save commits with subset trees (as child of
-        parent WIP commit or to parent branch commit) and have
-        `refs/influences-build/..` point to the commit rather than the tree.
+  * [ ] Decide whether I want to store the hash of the tree object of the subset
+        tree (like I am doing today), or if I want to make a commit, child of
+        the amended commit, and use this commit hash instead. (This is relevant
+        when writing `refs/influences-build/something` - is it a tree hash or is
+        it a commit hash?)
+
+  * [ ] Decide whether the commit metadata will be versioned (I am tending to
+        no, but maintain backwards compatibility)
 
 ### `wip-verify-project` (or: `wip-verify-target`)
 
@@ -137,4 +147,5 @@ repository if it is clean, or prints the commit hash of the wip commit (calling
       `notes/subset-trees.md`)
 * [ ] Decide whether to call *project* something else - maybe *target*? (see the
       footnote on `notes/subset-trees.md`). Right now, I'm writing
-      *project/target* sometimes.
+      *project/target* sometimes in docs, but in code I am using `target` to see
+      if it sticks.

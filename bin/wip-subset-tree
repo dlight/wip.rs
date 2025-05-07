@@ -1,10 +1,12 @@
 #!/bin/bash
 
-if [[ $#  -lt 1 ]]; then
+if [[ $#  -lt 2 ]]; then
     less "$0"
 fi
 
 path="$(realpath "$1")"
+
+target="$2"
 
 if [[ ! -f "$path" ]]; then
     echo "Error: '$1' is not a file" >&2
@@ -25,7 +27,7 @@ trap trapfn ERR EXIT INT HUP QUIT TERM
 
 git read-tree --empty
 
-cargo run --quiet --bin wip-read-toml "$path" | while read file; do
+cargo run --quiet --bin wip-influences-build "$path" "$target" | while read file; do
     git add "$file"
 done
 
