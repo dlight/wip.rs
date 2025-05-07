@@ -32,8 +32,8 @@ belongs to is being watched by `wipd`.
 ### `wip`
 
 A library crate (not a binary) containing some common code used by all Rust
-binaries. Currently only the code for reading a project/target `wip.toml`. It's
-only one file, `src/lib.rs`.
+binaries. Currently only the code for reading a target `wip.toml`. It's only one
+file, `src/lib.rs`.
 
 Currently all tools are in the same crate, in different binaries), but I may
 change this later.
@@ -47,10 +47,10 @@ change this later.
 
 ### `wip-influences-build`
 
-A tool written in Rust that parses `wip.toml` from a project/target inside a
-repo, reads the part that says which directories influences the build of the
-project, and prints all files in them. (Note: the repo-wide `wip.toml` is going
-to get ignored for now)
+A tool written in Rust that parses `wip.toml` from a target inside a repo, reads
+the part that says which directories influences the build of the target, and
+prints all files in them. (Note: the repo-wide `wip.toml` is going to get
+ignored for now)
 
 * [ ] Allow globs rather than only exact paths
 * [x] Make it able to exclude files too (like readme etc)
@@ -60,7 +60,7 @@ to get ignored for now)
 ### `wip-subset-tree`
 
 A shell script that calls `wip-read-toml` and builds a git tree containing only
-files that influences the build of a given project, and prints its sha1.
+files that influences the build of a given target, and prints its sha1.
 
 ### `wip-stop`
 
@@ -89,25 +89,30 @@ ensure it exists)
 * [*] A tool that amends the commit message of the last commit - which is either
     `HEAD` if the working dir is clean, or the wip commit if there are changes
     (creating the wip commit if it doesn't exist), to be called after every
-    successful build of a given project/target - it inserts some build info
-    (such as the version, the subset tree of all files influencing the build,
-    and any build warnings).\
+    successful build of a given target - it inserts some build info (such as the
+    version, the subset tree of all files influencing the build, and any build
+    warnings).\
     \
     It must also creates two refs: something like
-    `refs/build/myproject-v<semver>` pointing to the commit it was built, and
-    `refs/influences-build/myproject-v<semver>` pointing to the subset tree of
+    `refs/build/mytarget-v<semver>` pointing to the commit it was built, and
+    `refs/influences-build/mytargett-v<semver>` pointing to the subset tree of
     all files influencing the build. The generated semver is very particular,
     with specific pre-release and build metadata, it's something like this:
     `1.2.3-wip.2+2025-03-01` for wip commits, and `1.2.3-wip.2+2025-03-01` for
     commits in a branch (made when the working tree was clean). (Or maybe just
-    `myproject-v1.2.3-wip.2`, I can't decide myself).\
+    `mytarget-v1.2.3-wip.2`, I can't decide myself).\
     \
     Since the only two languages I am using here is Rust and shell script, I
     think this tool needs to be written in Rust: correctly adding metadata to
     the commit message may be tricky if there is already previous metadata (for
-    example, if I build one project, then build another project without changing
+    example, if I build one target, then build another target without changing
     any file)
+
   * [x] Commit metadata in toml format
+  * [ ] Check whether working tree is dirty, to decide whether amend `HEAD` or the wip commit
+    * [ ] Check how many builds were recorded for the given target and version
+          (they will be in `refs/build` and `ref/influences-build`), to create a
+          prerelease commit. It's only when someone manually creates a tag
 
   * [ ] I also needed some way to differentiate between wip builds and true
         releases. One idea is a flag in `wip.toml` that says that every commit
@@ -132,20 +137,45 @@ ensure it exists)
   * [ ] Decide whether the commit metadata will be versioned (I am tending to
         no, but maintain backwards compatibility)
 
-### `wip-verify-project` (or: `wip-verify-target`)
+### `wip-verify-target`
 
-* [ ] Some tool that, for a given project/target, verifies if HEAD has the same
-      partial tree as some wip build (but not the same partial tree as some
-      build in a branch), and if yes, create a `refs/build/..` ref to it (but
-      don't perform the build). This will be called opportunistically at every
-      build. The goal is that if I make some wip build and just commit the code
-      as is (maybe making some inconsequential edit like in a readme),
+* [ ] Some tool that, for a given target, verifies if HEAD has the same partial
+      tree as some wip build (but not the same partial tree as some build in a
+      branch), and if yes, create a `refs/build/..` ref to it (but don't perform
+      the build). This will be called opportunistically at every build. The goal
+      is that if I make some wip build and just commit the code as is (maybe
+      making some inconsequential edit like in a readme),
 
-### Naming
+### Naming and cross-cutting concerns
 
 * [ ] Decide whether to call *subset trees* something else (see
       `notes/subset-trees.md`)
-* [ ] Decide whether to call *project* something else - maybe *target*? (see the
-      footnote on `notes/subset-trees.md`). Right now, I'm writing
-      *project/target* sometimes in docs, but in code I am using `target` to see
-      if it sticks.
+* [x] Decide whether to call *project* something else - maybe *target*? (see the
+      footnote on `notes/subset-trees.md`). (Decided to use *target*)
+* [ ] Decide on the format `target-1.0.0.wip.1` or `target-v1.0.0.wip.1` (do I
+      need a `v` there?) About this, [Must the version tags include a
+      v?](https://github.com/semver/semver.org/issues/1)
+
+    > When tagging releases in a version control system, the tag for a version
+    > MUST be "vX.Y.Z" e.g. "v3.1.0".
+
+    But then this was removed from semver:
+
+    > So the reason why the SemVerTag was removed from the SemVer spec is, that
+    > it is out of scope how tags are setup for the different version control
+    > systems.\
+    > And: Each developer team can use any kind of tag scheme for their version
+    > control system, e.g. "v1.2.3" or "release-1.2.3" or "v1.2.3-foo" as long as
+    > the embedded SemVer tuple conforms to the SemVer spec.\
+    > Using the bare SemVer Tuple is just an easy to parse and also the most
+    > simple option. But using a prefix like 'v' can help to "just disambiguates
+    > (it) a little more than the straight version number by itself."\
+    > For some years now I use the scheme 'v1.2.3' for my projects in Git. For
+    > most other revision systems this should work, too. It allows filtering the
+    > output of 'git tag' with grep to just geht a list of release tags, while
+    > ignoring all other tags for other purposes. Filtering the bare SemVer number
+    > requires more effort and more complex regex expressions.
+
+    (Note, it was very hard to render those blockquotes without botching the
+    markdown. [How to add a block quote inside a github-flavoured markdown list
+    item?](https://stackoverflow.com/questions/27762125/how-to-add-a-block-quote-inside-a-github-flavoured-markdown-list-item))
