@@ -72,7 +72,7 @@ repository if it is clean, or prints the commit hash of the wip commit (calling
 
 ### `wip-amend-commit`
 
-* [ ] A tool that amends the commit message of the last commit - which is either
+* [*] A tool that amends the commit message of the last commit - which is either
     `HEAD` if the working dir is clean, or the wip commit if there are changes
     (creating the wip commit if it doesn't exist), to be called after every
     successful build of a given project/target - it inserts some build info
@@ -108,6 +108,19 @@ repository if it is clean, or prints the commit hash of the wip commit (calling
         a tool to check for integrity, and then we run it in a postcommit hook,
         using [cargo-husky](https://github.com/rhysd/cargo-husky) or (most
         likely) having our own tool.
+
+  * [ ] When saving a subset tree I would like to write a short hash. However
+        when reading them they could be ambiguous. [I need to disambiguate
+        them](https://stackoverflow.com/questions/27428441/how-to-disambiguate-an-ambiguous-abbreviated-sha1-in-git)
+        and select the *oldest* tree (git tree objects don't have a timestam,
+        but I could find the commits that have each tree and select the oldest.
+        If the tree isn't in any reachable commit, I could look into unreachable
+        commits. I could also look into the timestamps on
+        `refs/influences-build/project-version` and select the oldest).\
+        \
+        Perhaps a better idea is to save commits with subset trees (as child of
+        parent WIP commit or to parent branch commit) and have
+        `refs/influences-build/..` point to the commit rather than the tree.
 
 ### `wip-verify-project` (or: `wip-verify-target`)
 
