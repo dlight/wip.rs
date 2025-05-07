@@ -5,10 +5,12 @@ edition = "2024"
 
 [dependencies]
 
+# this is currently ignored
 [package.metadata.wip.paths]
 include = "../common/types"
 ignore = "README.md"
 
+# also currently ignored
 [package.metadata.wip.watcher-hooks]
 trigger_rebuild = "echo $RANDOM > ./target/wip-trigger-rebuild"
-binary_path  = "./target/frontend"
+binary_path = "./target/frontend"
