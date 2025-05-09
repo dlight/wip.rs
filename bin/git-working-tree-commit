@@ -4,13 +4,18 @@
 # prints the hash of the wip commit (calling `git wip` first to ensure it
 # exists)
 
+if [[ $1 == "--directory" ]]; then
+    dir="$2"
+
+    cd "$dir"
+fi
+
 if [[ $(git status --porcelain) ]]; then
     current_branch="$(git branch --show-current)"
 
     git wip 2>&1 | sed '/no changes/d'
 
-    git rev-parse "refs/wip/$current_branch"
-
+    echo wip "$(git rev-parse "refs/wip/$current_branch")"
 else
-    git rev-parse HEAD
+    echo head "$(git rev-parse HEAD)"
 fi

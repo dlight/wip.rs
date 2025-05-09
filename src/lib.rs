@@ -1,15 +1,23 @@
+#![allow(unused)]
+
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use boolinator::Boolinator;
 use semver::Version;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_derive::{Deserialize, Serialize};
+use std::process::Command;
 use walkdir::WalkDir;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub type Error = Box<dyn std::error::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
+
+// TODO: change to struct Sha1([u8; 20]);
+pub type Sha1 = String;
 
 pub type WipTomlUnevaluated = WipTomlBase<UnevaluatedVersion>;
 pub type WipToml = WipTomlBase<Version>;
@@ -18,8 +26,13 @@ pub type WipToml = WipTomlBase<Version>;
 #[serde(bound = "V: Serialize + DeserializeOwned")]
 pub struct WipTomlBase<V: Serialize + DeserializeOwned + Debug> {
     pub target: Vec<Target<V>>,
+
     #[serde(skip)]
     pub path: PathBuf,
+    #[serde(skip)]
+    pub parent_dir: PathBuf,
+    #[serde(skip)]
+    pub git_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,17 +94,20 @@ impl WipTomlUnevaluated {
         }
 
         fn map_version(base: &Path, version: UnevaluatedVersion) -> Result<Version> {
+            use UnevaluatedVersion::*;
+
             match version {
-                UnevaluatedVersion::Direct(v) => Ok(v),
-                UnevaluatedVersion::FromToml(VersionFrom { from: v }) => read_version(base, v),
+                Direct(v) => Ok(v),
+                FromToml(VersionFrom { from: v }) => read_version(base, v),
             }
         }
 
-        let Self { target, path } = self;
-
-        let base = path
-            .parent()
-            .ok_or(format!("wip.toml is expected to be a file"))?;
+        let Self {
+            target,
+            path,
+            parent_dir,
+            git_dir,
+        } = self;
 
         let new_target = target
             .into_iter()
@@ -103,7 +119,7 @@ impl WipTomlUnevaluated {
                  }| {
                     Ok(Target {
                         name,
-                        version: map_version(base, version)?,
+                        version: map_version(&parent_dir, version)?,
                         influences_build,
                     })
                 },
@@ -113,8 +129,31 @@ impl WipTomlUnevaluated {
         Ok(WipToml {
             path,
             target: new_target,
+            parent_dir,
+            git_dir,
         })
     }
+}
+
+fn get_git_root_directory(parent_dir: &Path) -> Result<Sha1> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(parent_dir)
+        .args(&["rev-parse", "--show-toplevel"])
+        .output()?;
+
+    let success = output.status.success();
+    success.ok_or("git rev-parse --show-toplevel failed")?;
+
+    let toplevel = String::from_utf8(output.stdout)?.trim().to_string();
+    Ok(toplevel)
+}
+
+fn path_points_outside(base: &Path, candidate: &Path) -> Result<bool> {
+    let base = fs::canonicalize(base)?;
+    let candidate = fs::canonicalize(candidate)?;
+
+    Ok(!candidate.starts_with(base))
 }
 
 impl WipToml {
@@ -127,15 +166,27 @@ impl WipToml {
 
         // Ensure paths are relative
         for target in &mut toml.target {
-            for path in &mut target.influences_build.include {
+            let influences = &target.influences_build;
+            let paths = influences.include.iter().chain(influences.exclude.iter());
+
+            for path in paths {
                 if path.is_absolute() {
                     Err(format!(
-                        "Absolute path found in influences_build.include: {}",
+                        "Absolute path found in influences_build: {}",
                         path.display()
                     ))?;
                 }
 
-                // TODO: also ensure that we can't point outside the current git repository
+                /*
+                let absolute_path = toml.parent_dir.join(path);
+
+                if path_points_outside(&toml.git_dir, &absolute_path)? {
+                    Err(format!(
+                        "Path in influences_build points outside git repo: {}",
+                        path.display()
+                    ))?
+                }
+                */
             }
         }
 

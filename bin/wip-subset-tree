@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -e
+set -o pipefail
+
 if [[ $#  -lt 2 ]]; then
     less "$0"
 fi
@@ -13,9 +16,10 @@ if [[ ! -f "$path" ]]; then
     exit 1
 fi
 
+# go to target git repo so we can do git read-tree
 cd "$(dirname "$path")"
-
-cd "$(git rev-parse --show-toplevel)"
+git_repo="$(git rev-parse --show-toplevel)"
+cd "$git_repo"
 
 trapfn() {
     rm -f "$GIT_INDEX_FILE"
@@ -27,7 +31,16 @@ trap trapfn ERR EXIT INT HUP QUIT TERM
 
 git read-tree --empty
 
-cargo run --quiet --bin wip-influences-build "$path" "$target" | while read file; do
+# get back so that we can run wip-influences-build
+cd "$(dirname "$0")"
+cd "$(git rev-parse --show-toplevel)"
+
+output="$(cargo run --quiet --bin wip-influences-build "$path" "$target")"
+
+# back to target git repo so we can run git add
+cd "$git_repo"
+
+echo "$output" | while read file; do
     git add "$file"
 done
 

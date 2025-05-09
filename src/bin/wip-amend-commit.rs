@@ -5,16 +5,16 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str::FromStr;
 
+use boolinator::Boolinator;
 use execute::Execute;
 use itertools::Itertools;
 use semver::Version;
 use serde_derive::{Deserialize, Serialize};
 
-use wip::{Result, WipToml};
-
-// TODO: change to struct Sha1([u8; 20]);
-type Sha1 = String;
+use toml::Value;
+use wip::{Error, Result, Sha1, WipToml};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct BuildInfo {
@@ -22,12 +22,6 @@ struct BuildInfo {
     target: VersionedTarget,
     subset_tree: Sha1,
     build_warnings: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct CommitMessage {
-    message: String,
-    metadata: Vec<BuildInfo>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -48,45 +42,6 @@ impl VersionedTarget {
             name: wip_toml_target.name.clone(),
             version: wip_toml_target.version.clone(),
         }
-    }
-}
-
-impl std::fmt::Display for BuildInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "successful build: {}-{} ({})",
-            self.target.name, self.target.version, self.subset_tree
-        )?;
-
-        if let Some(warnings) = &self.build_warnings {
-            writeln!(f, "\nbuild warnings:\n{}", warnings)?;
-        }
-        Ok(())
-    }
-}
-
-impl CommitMessage {
-    const SEPARATOR: &str = "--- ";
-}
-
-impl fmt::Display for CommitMessage {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)?;
-
-        write!(f, "\n\n");
-        write!(f, "{}", CommitMessage::SEPARATOR);
-        write!(f, "\n\n");
-
-        let mut metadata: HashMap<&str, &[BuildInfo]> = HashMap::new();
-
-        metadata.insert("build", &self.metadata);
-
-        let metadata = toml::to_string(&metadata).unwrap();
-
-        write!(f, "{}", metadata);
-
-        Ok(())
     }
 }
 
@@ -119,6 +74,78 @@ impl BuildInfo {
     }
 }
 
+#[derive(Debug, Clone)]
+struct CommitMessage {
+    message: String,
+    metadata: Vec<BuildInfo>,
+}
+
+impl CommitMessage {
+    const SEPARATOR: &str = "\n\n--- something\n\n";
+}
+
+impl fmt::Display for CommitMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.message)?;
+
+        write!(f, "{}", CommitMessage::SEPARATOR);
+
+        let mut metadata: HashMap<&str, &[BuildInfo]> = HashMap::new();
+
+        metadata.insert("build", &self.metadata);
+
+        let metadata = toml::to_string(&metadata).unwrap();
+
+        write!(f, "{}", metadata);
+
+        Ok(())
+    }
+}
+
+impl FromStr for CommitMessage {
+    type Err = Error;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let Some(sep_offset) = s.rfind(CommitMessage::SEPARATOR) else {
+            return Ok(CommitMessage {
+                message: s.to_string(),
+                metadata: vec![],
+            });
+        };
+
+        let message = s[0..sep_offset].to_string();
+
+        let sep_end = sep_offset + CommitMessage::SEPARATOR.len();
+
+        let toml_str = &s[sep_end..s.len()];
+
+        // the toml crate can serialize a `Vec<BuildInfo>` as [[build]] .. but
+        // can't deserialize it without wrapping it in a struct with a build field
+        #[derive(Deserialize)]
+        struct BuildRead {
+            build: Vec<BuildInfo>,
+        }
+
+        let BuildRead { build }: BuildRead = toml::from_str(toml_str)?;
+
+        Ok(CommitMessage {
+            message,
+            metadata: build,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+enum WorkingTreeCommit {
+    Wip(Sha1),
+    Head(Sha1),
+}
+
+#[derive(Debug, Clone)]
+struct Amend {
+    commit: WorkingTreeCommit,
+    commit_message: CommitMessage,
+}
+
 fn find_bin_dir(own_binary: &Path) -> Result<PathBuf> {
     let mut path = fs::canonicalize(own_binary)?;
     path.pop(); // wip-amend-commit/..
@@ -129,34 +156,95 @@ fn find_bin_dir(own_binary: &Path) -> Result<PathBuf> {
 }
 
 fn get_subset_tree(own_binary: &Path, wip_toml: &Path, target_name: &str) -> Result<Sha1> {
-    let bin_dir = find_bin_dir(own_binary)?;
+    let bin_path = find_bin_dir(own_binary)?.join("wip-subset-tree");
 
-    let bin_path = bin_dir.join("wip-subset-tree");
+    let output = Command::new(bin_path.clone())
+        .arg(wip_toml)
+        .arg(target_name)
+        .output()?;
 
-    let mut wip_subset_tree = Command::new(bin_path);
-    wip_subset_tree.arg(wip_toml);
-    wip_subset_tree.arg(target_name);
+    output.status.success().ok_or("wip-subset-tree failed")?;
 
-    let output = wip_subset_tree.output()?;
-    if output.status.success() {
-        let hash = String::from_utf8_lossy(&output.stdout);
-        Ok(Sha1::from(hash.trim().to_string()))
-    } else {
-        return Err("wip-subset-tree failed")?;
+    let hash = String::from_utf8(output.stdout)?;
+
+    Ok(Sha1::from(hash.trim().to_string()))
+}
+
+fn working_tree_dirty() -> Result<bool> {
+    let output = Command::new("git")
+        .args(&["status", "--porcelain"])
+        .output()?;
+
+    output.status.success().ok_or("git status failed")?;
+
+    let no_changes = String::from_utf8(output.stdout)?.trim().is_empty();
+
+    Ok(!no_changes)
+}
+
+fn working_tree_commit(own_binary: &Path, git_repo: &Path) -> Result<WorkingTreeCommit> {
+    let bin_path = find_bin_dir(own_binary)?.join("git-working-tree");
+
+    let output = Command::new(bin_path)
+        .arg("--directory")
+        .arg(git_repo)
+        .output()?;
+
+    output.status.success().ok_or("git-working-tree failed")?;
+
+    let stdout = String::from_utf8(output.stdout)?;
+
+    let (kind, hash) = stdout.trim().split_whitespace().next_tuple().unwrap();
+
+    match kind {
+        "wip" => Ok(WorkingTreeCommit::Wip(hash.to_string())),
+        "head" => Ok(WorkingTreeCommit::Head(hash.to_string())),
+        _ => Err(format!("commit is neither wip nor head: {kind}"))?,
     }
 }
 
-//fn working_tree_commit()
+fn okay(s: &str) -> Result<(String, Option<Value>)> {
+    let Some(sep_offset) = s.rfind(CommitMessage::SEPARATOR) else {
+        return Ok((s.to_string(), None));
+    };
+
+    let message = s[0..sep_offset].to_string();
+
+    let sep_end = sep_offset + CommitMessage::SEPARATOR.len();
+
+    let toml_str = &s[sep_end..s.len()];
+    let metadata = toml::from_str(toml_str)?;
+
+    Ok((message, metadata))
+}
 
 fn main() -> Result<()> {
     let build_info = BuildInfo::from_cmdline_args(std::env::args())?;
 
     let commit = CommitMessage {
         message: "abc".to_owned(),
-        metadata: vec![build_info],
+        metadata: vec![build_info.clone(), build_info.clone()],
     };
 
-    println!("{}", commit);
+    println!("{:#?}", commit);
+
+    println!("\n=========\n");
+
+    let s = format!("{}", commit);
+
+    println!("{}", s);
+
+    println!("\n=========\n");
+
+    let (a, b) = okay(&s)?;
+
+    println!("{:#?}", (a, b.unwrap()));
+
+    println!("\n=========\n");
+
+    let a = s.parse::<CommitMessage>()?;
+
+    println!("{:#?}", a);
 
     Ok(())
 }

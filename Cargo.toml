@@ -7,6 +7,7 @@ edition = "2024"
 # both
 toml = { version = "0.8.22", features = ["parse"] }
 semver = { version = "1.0.26", features = ["serde"] }
+boolinator = "2.4.0"
 
 # only for wip-amend-commit
 execute = "0.2.13"
