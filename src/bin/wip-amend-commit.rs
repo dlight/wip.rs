@@ -203,6 +203,25 @@ fn working_tree_commit(own_binary: &Path, git_repo: &Path) -> Result<WorkingTree
     }
 }
 
+fn resolve_git_tag(tag: &str) -> Result<Option<Sha1>> {
+    use std::ops::Not;
+    use std::str::from_utf8;
+
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg(format!("refs/tags/{}", tag))
+        .output()?;
+
+    output.status.success().ok_or("git rev-parse failed")?;
+
+    let sha1 = from_utf8(&output.stdout)?.trim();
+    let not_empty = !sha1.is_empty();
+
+    let sha1 = not_empty.then(|| sha1.to_string());
+
+    Ok(sha1)
+}
+
 fn okay(s: &str) -> Result<(String, Option<Value>)> {
     let Some(sep_offset) = s.rfind(CommitMessage::SEPARATOR) else {
         return Ok((s.to_string(), None));

@@ -1,10 +1,19 @@
+# Integrate with rust-analyzer
+
+- [ ] Add an option to listen to rust-analyzer's build (when configured to run
+      `cargo build` rather than `cargo run`) rather than running on its own.
+      This also means adding a delay: if the build doesn't happen, run it
+      anyway. This should be the default, too.
+
+      See the comment on /home/x/code/weber/todo.md for details.
+
 # `wip-amend-commit`
 
 - [x] Get git root directory into `WipTomlBase`
 - [x] Check whether the working tree is dirty by running `git status
       --porcelain` and checking if stdout is empty
 - [x] Pretty-print commit messages, verifying they round-trip
-- [ ] Check whether the tag `target-version` exists. If yes, and we are in a
+- [-] Check whether the tag `target-version` exists. If yes, and we are in a
       clean working tree, and the tag is in the current commit.. our version is
       just the version in `wip.toml`
 

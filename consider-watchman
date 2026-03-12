@@ -1,0 +1,19 @@
+https://github.com/facebook/watchman
+
+vi aqui https://news.ycombinator.com/item?id=46597582
+
+1 point by nextaccountic 5 days ago | parent | context | favorite | on: Fossil versus Git
+
+> From the Facebook blog post, it seems like the key issue was Facebook's internal filesystem monitoring tool (Watchman) was easier to integrate with Mercurial than with Git:
+
+> https://engineering.fb.com/2014/01/07/core-infra/scaling-mer...
+
+That link is from 2014, is there any more recent work to make Git use a file watcher rather than scan the whole tree?
+
+--
+
+https://engineering.fb.com/2014/01/07/core-infra/scaling-mercurial-at-facebook/#:~:text=We%20solved%20this,with%20Watchman%20straightforward%2C
+
+--
+
+eles tentam resolver alguns problemas de concorrencia com isso aqui https://facebook.github.io/watchman/docs/cookies parece chatinho de reimplementar
