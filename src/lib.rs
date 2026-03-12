@@ -11,7 +11,7 @@ use semver::Version;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_derive::{Deserialize, Serialize};
 use std::process::Command;
-use walkdir::WalkDir;
+use ignore::WalkBuilder;
 
 pub type Error = Box<dyn std::error::Error>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -209,11 +209,14 @@ impl WipToml {
         let target = self.get_target(target_name)?;
 
         for relative_path in &target.influences_build.exclude {
-            for entry in WalkDir::new(dir.join(relative_path)) {
+            let walk = WalkBuilder::new(dir.join(relative_path))
+                .hidden(false)
+                .build();
+            for entry in walk {
                 // TODO: use let chains when it stabilizes
                 if let Ok(entry) = entry {
                     let path = fs::canonicalize(entry.path())?;
-                    if !entry.file_type().is_dir() {
+                    if !entry.file_type().map_or(true, |ft| ft.is_dir()) {
                         excluded.insert(path);
                     }
                 }
@@ -221,11 +224,14 @@ impl WipToml {
         }
 
         for relative_path in &target.influences_build.include {
-            for entry in WalkDir::new(dir.join(relative_path)) {
+            let walk = WalkBuilder::new(dir.join(relative_path))
+                .hidden(false)
+                .build();
+            for entry in walk {
                 // TODO: use let chains when it stabilizes
                 if let Ok(entry) = entry {
                     let path = fs::canonicalize(entry.path())?;
-                    if !entry.file_type().is_dir() && !excluded.contains(&path) {
+                    if !entry.file_type().map_or(true, |ft| ft.is_dir()) && !excluded.contains(&path) {
                         included.insert(path);
                     }
                 }
