@@ -1,3 +1,4 @@
 [submodule "test-repo"]
 	path = test-repo
-	url = ./test-repo
+	url = https://github.com/dlight/wip.rs.git
+	branch = test-repo
